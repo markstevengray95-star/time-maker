@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import AppV10 from './AppV10.jsx';
 import IssuesScreen from './IssuesScreen.jsx';
+import WorkloadScreen from './WorkloadScreen.jsx';
 import { KEY, activeTimetable } from './timetableCore.js';
 
-const screens = [['issues','Timetable Issues',11,IssuesScreen]];
+const screens = [['issues','Timetable Issues',11,IssuesScreen],['workload','Staff Workload',12,WorkloadScreen]];
 function load() {try {return JSON.parse(localStorage.getItem(KEY) || '{}');} catch {return {};}}
 export default function OperationsApp() {
   const [page,setPage] = useState('builder'), [data,setState] = useState(load), [revision,setRevision] = useState(0), [saveError,setSaveError] = useState('');
