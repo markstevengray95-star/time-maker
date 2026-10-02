@@ -1,0 +1,63 @@
+.phase8-wrapper { position: relative; }
+.phase8-commandbar { position: fixed; left: 22px; bottom: 22px; z-index: 60; display: flex; gap: 10px; align-items: stretch; }
+.demo-data-button, .phase8-launcher { border-radius: 16px; padding: 12px 14px; text-align: left; box-shadow: 0 14px 32px rgba(25,60,52,.18); min-width: 170px; }
+.demo-data-button span, .demo-data-button strong, .demo-data-button small, .phase8-launcher span, .phase8-launcher strong, .phase8-launcher small { display: block; }
+.demo-data-button { border: 1px solid #d6dfdc; background: #fff; color: #24483f; }
+.demo-data-button span { color: #8b6c35; font-size: .64rem; font-weight: 900; letter-spacing: .12em; }
+.demo-data-button strong { margin: 3px 0; }
+.demo-data-button small { color: #72827e; font-size: .68rem; }
+.demo-data-button:hover { background: #fbfcfc; transform: translateY(-1px); }
+.phase8-launcher { border: 1px solid #584c87; background: #40366b; color: #fff; }
+.phase8-launcher span { color: #c9c1ed; font-size: .64rem; font-weight: 900; letter-spacing: .12em; }
+.phase8-launcher strong { margin: 3px 0; }
+.phase8-launcher small { color: #d8d3ef; font-size: .68rem; }
+.phase8-launcher:hover { background: #4a3f78; transform: translateY(-1px); }
+
+.review-page { min-height: 100vh; background: #f4f7f6; padding: 28px clamp(18px,4vw,60px) 60px; color: #18322d; }
+.review-page > .panel, .review-page > .summary-grid, .review-page > .validation-panel { max-width: 1700px; margin-left: auto; margin-right: auto; }
+.review-topbar { max-width: 1700px; margin: 0 auto 22px; display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; }
+.review-topbar p { max-width: 800px; }
+.review-option-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap: 10px; }
+.review-option { border: 1px solid #dfe7e4; border-radius: 14px; background: #fafcfc; padding: 14px; text-align: left; color: #25483f; display: grid; gap: 12px; }
+.review-option.selected { background: #f0eef8; border-color: #7467a4; box-shadow: inset 0 0 0 1px #7467a4; }
+.review-option strong, .review-option span, .review-option b { display: block; }
+.review-option > div:first-child span { color: #71827d; font-size: .72rem; margin-top: 3px; }
+.review-option-metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
+.review-option-metrics span { border: 1px solid #e4e9e7; border-radius: 9px; padding: 7px; font-size: .64rem; color: #73827e; background: #fff; }
+.review-option-metrics b { color: #314f47; font-size: .82rem; margin-bottom: 2px; }
+
+.review-findings { display: grid; gap: 8px; }
+.review-findings > div { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: center; border: 1px solid #ead9b9; background: #fffaf1; border-radius: 11px; padding: 10px 12px; }
+.review-findings > div > span { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: #f3dfb9; color: #815c24; font-weight: 900; }
+.review-findings p { margin: 0; color: #725f43; font-size: .8rem; }
+
+.workload-review-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 10px; }
+.workload-review-card, .room-review-card { border: 1px solid #e0e8e5; border-radius: 13px; padding: 13px; background: #fafcfc; }
+.workload-review-card > div:first-child strong, .workload-review-card > div:first-child span { display: block; }
+.workload-review-card > div:first-child span { color: #74847f; font-size: .68rem; margin-top: 2px; }
+.review-bar { height: 8px; border-radius: 999px; background: #e6ecea; overflow: hidden; margin: 10px 0 7px; }
+.review-bar span { display: block; height: 100%; border-radius: inherit; background: #557f75; }
+.workload-review-card small, .room-review-card small { color: #6f807b; font-size: .68rem; }
+
+.room-review-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); gap: 10px; }
+.room-review-card { display: grid; gap: 4px; }
+.room-review-card > div:first-child strong, .room-review-card > div:first-child span { display: block; }
+.room-review-card > div:first-child span { color: #758680; font-size: .66rem; margin-top: 2px; }
+.room-review-card > b { font-size: 1.2rem; margin-top: 4px; }
+
+.optimisation-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+.optimisation-grid > div { border: 1px solid #e1e8e6; background: #fafcfc; border-radius: 13px; padding: 14px; }
+.optimisation-grid strong { color: #2d5148; }
+.optimisation-grid p { margin: 6px 0 0; font-size: .78rem; line-height: 1.5; }
+
+@media (max-width: 950px) {
+  .optimisation-grid { grid-template-columns: repeat(2,1fr); }
+  .review-topbar { display: grid; }
+}
+@media (max-width: 720px) {
+  .phase8-commandbar { left: 12px; bottom: 12px; flex-direction: column; }
+  .demo-data-button, .phase8-launcher { min-width: 170px; padding: 10px 12px; }
+  .review-page { padding: 18px 12px 40px; }
+  .review-option-metrics { grid-template-columns: 1fr; }
+  .optimisation-grid { grid-template-columns: 1fr; }
+}
