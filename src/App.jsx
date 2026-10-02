@@ -2,11 +2,22 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 const STORAGE_KEY = 'time-maker-v3';
 const LEGACY_KEY = 'time-maker-phase-1-v1';
-const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+const uid = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
 const DAY_DEFS = [
   ['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'],
   ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday'],
+];
+
+const DEFAULT_SUBJECTS = [
+  'English', 'Mathematics', 'Science', 'Biology', 'Chemistry', 'Physics', 'History', 'Geography',
+  'French', 'Spanish', 'German', 'Computer Science', 'PE', 'Art', 'Music', 'Drama', 'Design Technology',
+  'Business', 'Religious Studies', 'PSHE', 'Citizenship', 'Further Mathematics',
+];
+
+const ROOM_TYPES = [
+  'General classroom', 'Science lab', 'Computer room', 'Art room', 'Music room', 'Drama space',
+  'Sports facility', 'Workshop / DT room', 'Kitchen / food room', 'No specialist room',
 ];
 
 const defaultBlocks = [
@@ -40,14 +51,32 @@ const initialState = {
   departments: ['Science', 'Mathematics', 'English', 'Humanities', 'Languages', 'PE', 'Arts', 'Technology', 'SEND', 'Sixth Form'],
   staff: [],
   classes: [],
+  curriculumRequirements: [],
 };
+
+function hydrateState(saved = {}) {
+  return {
+    ...initialState,
+    ...saved,
+    school: { ...initialState.school, ...(saved.school || {}) },
+    days: saved.days || initialState.days,
+    blocks: saved.blocks || initialState.blocks,
+    dayOverrides: saved.dayOverrides || {},
+    keyStages: saved.keyStages || initialState.keyStages,
+    terms: saved.terms || initialState.terms,
+    departments: saved.departments || initialState.departments,
+    staff: saved.staff || [],
+    classes: saved.classes || [],
+    curriculumRequirements: saved.curriculumRequirements || [],
+  };
+}
 
 function loadState() {
   try {
     const current = localStorage.getItem(STORAGE_KEY);
-    if (current) return { ...initialState, ...JSON.parse(current) };
+    if (current) return hydrateState(JSON.parse(current));
     const legacy = localStorage.getItem(LEGACY_KEY);
-    if (legacy) return { ...initialState, ...JSON.parse(legacy), departments: initialState.departments, staff: [], classes: [] };
+    if (legacy) return hydrateState(JSON.parse(legacy));
   } catch {
     // Fall back to clean starter data.
   }
@@ -63,10 +92,14 @@ function validateBlocks(blocks) {
   const errors = [];
   blocks.forEach((block, index) => {
     if (!block.name?.trim()) errors.push(`Block ${index + 1} needs a name.`);
-    if (!block.start || !block.end || toMinutes(block.start) >= toMinutes(block.end)) errors.push(`${block.name || `Block ${index + 1}`} has an invalid time range.`);
+    if (!block.start || !block.end || toMinutes(block.start) >= toMinutes(block.end)) {
+      errors.push(`${block.name || `Block ${index + 1}`} has an invalid time range.`);
+    }
   });
   for (let i = 0; i < blocks.length - 1; i += 1) {
-    if (toMinutes(blocks[i].end) > toMinutes(blocks[i + 1].start)) errors.push(`${blocks[i].name} overlaps ${blocks[i + 1].name}.`);
+    if (toMinutes(blocks[i].end) > toMinutes(blocks[i + 1].start)) {
+      errors.push(`${blocks[i].name} overlaps ${blocks[i + 1].name}.`);
+    }
   }
   return errors;
 }
@@ -102,12 +135,21 @@ function Section({ eyebrow, title, description, actions, children }) {
 }
 
 function EmptyState({ title, text, action, onClick }) {
-  return <div className="empty-state"><div className="empty-icon">+</div><strong>{title}</strong><p>{text}</p><button className="primary" onClick={onClick}>{action}</button></div>;
+  return <div className="empty-state">
+    <div className="empty-icon">+</div><strong>{title}</strong><p>{text}</p>
+    <button className="primary" onClick={onClick}>{action}</button>
+  </div>;
+}
+
+function Metric({ label, value, note, className = '' }) {
+  return <div className="metric-card"><span>{label}</span><strong className={className}>{value}</strong><small>{note}</small></div>;
 }
 
 function SchoolSetup({ data, setData }) {
   const [editingDay, setEditingDay] = useState('mon');
   const enabledDays = data.days.filter((d) => d.enabled);
+  const selectedOverride = data.dayOverrides?.[editingDay];
+  const selectedBlocks = selectedOverride || data.blocks;
   const blockErrors = useMemo(() => {
     const errors = validateBlocks(data.blocks).map((m) => `Default day: ${m}`);
     Object.entries(data.dayOverrides || {}).forEach(([dayKey, blocks]) => {
@@ -119,8 +161,6 @@ function SchoolSetup({ data, setData }) {
   const teachingWeeks = countTeachingWeeks(data.terms);
 
   const updateSchool = (field, value) => setData((p) => ({ ...p, school: { ...p.school, [field]: value } }));
-  const selectedOverride = data.dayOverrides?.[editingDay];
-  const selectedBlocks = selectedOverride || data.blocks;
 
   function updateBlock(index, field, value) {
     setData((p) => {
@@ -138,15 +178,32 @@ function SchoolSetup({ data, setData }) {
   function addBlock() {
     setData((p) => {
       const item = { id: uid(), name: 'New period', type: 'lesson', start: '16:05', end: '17:00' };
-      if (p.dayOverrides?.[editingDay]) return { ...p, dayOverrides: { ...p.dayOverrides, [editingDay]: [...p.dayOverrides[editingDay], item] } };
+      if (p.dayOverrides?.[editingDay]) {
+        return { ...p, dayOverrides: { ...p.dayOverrides, [editingDay]: [...p.dayOverrides[editingDay], item] } };
+      }
       return { ...p, blocks: [...p.blocks, item] };
     });
   }
 
   function removeBlock(index) {
     setData((p) => {
-      if (p.dayOverrides?.[editingDay]) return { ...p, dayOverrides: { ...p.dayOverrides, [editingDay]: p.dayOverrides[editingDay].filter((_, i) => i !== index) } };
+      if (p.dayOverrides?.[editingDay]) {
+        return { ...p, dayOverrides: { ...p.dayOverrides, [editingDay]: p.dayOverrides[editingDay].filter((_, i) => i !== index) } };
+      }
       return { ...p, blocks: p.blocks.filter((_, i) => i !== index) };
+    });
+  }
+
+  function moveBlock(index, direction) {
+    setData((p) => {
+      const usingOverride = Boolean(p.dayOverrides?.[editingDay]);
+      const source = [...(usingOverride ? p.dayOverrides[editingDay] : p.blocks)];
+      const target = index + direction;
+      if (target < 0 || target >= source.length) return p;
+      [source[index], source[target]] = [source[target], source[index]];
+      return usingOverride
+        ? { ...p, dayOverrides: { ...p.dayOverrides, [editingDay]: source } }
+        : { ...p, blocks: source };
     });
   }
 
@@ -162,10 +219,10 @@ function SchoolSetup({ data, setData }) {
   return <>
     <div className="page-title"><div><span className="eyebrow">PHASE 1</span><h1>School setup</h1><p>Define the structure every later timetable rule uses.</p></div></div>
     <div className="summary-grid compact">
-      <div className="metric-card"><span>Teaching days</span><strong>{enabledDays.length}</strong><small>enabled each week</small></div>
-      <div className="metric-card"><span>Teaching weeks</span><strong>{teachingWeeks || '—'}</strong><small>from term dates</small></div>
-      <div className="metric-card"><span>Cycle</span><strong>{data.school.cycle === 'two-week' ? 'A / B' : '1 week'}</strong><small>timetable pattern</small></div>
-      <div className="metric-card"><span>Day validation</span><strong className={blockErrors.length ? 'warn-text' : 'good-text'}>{blockErrors.length ? `${blockErrors.length} issue${blockErrors.length > 1 ? 's' : ''}` : 'Ready'}</strong><small>time structure</small></div>
+      <Metric label="Teaching days" value={enabledDays.length} note="enabled each week" />
+      <Metric label="Teaching weeks" value={teachingWeeks || '—'} note="from term dates" />
+      <Metric label="Cycle" value={data.school.cycle === 'two-week' ? 'A / B' : '1 week'} note="timetable pattern" />
+      <Metric label="Day validation" value={blockErrors.length ? `${blockErrors.length} issue${blockErrors.length > 1 ? 's' : ''}` : 'Ready'} note="time structure" className={blockErrors.length ? 'warn-text' : 'good-text'} />
     </div>
 
     <Section eyebrow="1 · SCHOOL" title="School profile" description="Set the academic context and timetable cycle.">
@@ -181,7 +238,10 @@ function SchoolSetup({ data, setData }) {
     </Section>
 
     <Section eyebrow="2 · WEEK" title="Teaching week" description="Enable the days your school can timetable lessons on.">
-      <div className="day-toggles">{data.days.map((day) => <label key={day.key} className={`day-toggle ${day.enabled ? 'enabled' : ''}`}><input type="checkbox" checked={day.enabled} onChange={(e) => setData((p) => ({ ...p, days: p.days.map((d) => d.key === day.key ? { ...d, enabled: e.target.checked } : d) }))} /><span>{day.label}</span><small>{day.enabled ? 'Teaching day' : 'Off'}</small></label>)}</div>
+      <div className="day-toggles">{data.days.map((day) => <label key={day.key} className={`day-toggle ${day.enabled ? 'enabled' : ''}`}>
+        <input type="checkbox" checked={day.enabled} onChange={(e) => setData((p) => ({ ...p, days: p.days.map((d) => d.key === day.key ? { ...d, enabled: e.target.checked } : d) }))} />
+        <span>{day.label}</span><small>{day.enabled ? 'Teaching day' : 'Off'}</small>
+      </label>)}</div>
     </Section>
 
     <Section eyebrow="3 · PERIODS" title="School day" description="Edit standard lesson, break and activity times. Individual days can use a different pattern.">
@@ -190,6 +250,7 @@ function SchoolSetup({ data, setData }) {
         <label className="switch-label"><input type="checkbox" checked={Boolean(selectedOverride)} onChange={(e) => toggleOverride(e.target.checked)} /> Custom times for this day</label>
       </div>
       <div className="block-list">{selectedBlocks.map((block, index) => <div className={`time-block ${block.type}`} key={block.id}>
+        <div className="move-stack"><button onClick={() => moveBlock(index, -1)}>↑</button><button onClick={() => moveBlock(index, 1)}>↓</button></div>
         <input className="block-name" value={block.name} onChange={(e) => updateBlock(index, 'name', e.target.value)} />
         <select value={block.type} onChange={(e) => updateBlock(index, 'type', e.target.value)}><option value="lesson">Lesson</option><option value="break">Break</option><option value="activity">Activity</option></select>
         <input type="time" value={block.start} onChange={(e) => updateBlock(index, 'start', e.target.value)} /><span className="to">to</span><input type="time" value={block.end} onChange={(e) => updateBlock(index, 'end', e.target.value)} />
@@ -199,7 +260,7 @@ function SchoolSetup({ data, setData }) {
       {blockErrors.length > 0 && <div className="inline-warning">{blockErrors.map((e) => <div key={e}>{e}</div>)}</div>}
     </Section>
 
-    <Section eyebrow="4 · YEAR GROUPS" title="Key stages and year groups" description="These year groups feed directly into the class builder in Phase 3." actions={<button className="secondary" onClick={() => setData((p) => ({ ...p, keyStages: [...p.keyStages, { id: uid(), name: 'New stage', years: ['New year'] }] }))}>+ Key stage</button>}>
+    <Section eyebrow="4 · YEAR GROUPS" title="Key stages and year groups" description="These year groups feed directly into classes and curriculum requirements." actions={<button className="secondary" onClick={() => setData((p) => ({ ...p, keyStages: [...p.keyStages, { id: uid(), name: 'New stage', years: ['New year'] }] }))}>+ Key stage</button>}>
       <div className="ks-grid">{data.keyStages.map((ks, ksIndex) => <div className="ks-card" key={ks.id}>
         <div className="ks-title"><input value={ks.name} onChange={(e) => setData((p) => ({ ...p, keyStages: p.keyStages.map((x, i) => i === ksIndex ? { ...x, name: e.target.value } : x) }))} /><button className="danger-icon" onClick={() => setData((p) => ({ ...p, keyStages: p.keyStages.filter((_, i) => i !== ksIndex) }))}>×</button></div>
         <div className="year-tags">{ks.years.map((year, yearIndex) => <div className="year-row" key={`${ks.id}-${yearIndex}`}><input value={year} onChange={(e) => setData((p) => ({ ...p, keyStages: p.keyStages.map((x, i) => i === ksIndex ? { ...x, years: x.years.map((y, j) => j === yearIndex ? e.target.value : y) } : x) }))} /><button onClick={() => setData((p) => ({ ...p, keyStages: p.keyStages.map((x, i) => i === ksIndex ? { ...x, years: x.years.filter((_, j) => j !== yearIndex) } : x) }))}>×</button></div>)}</div>
@@ -258,21 +319,21 @@ function StaffManager({ data, setData }) {
   return <>
     <div className="page-title"><div><span className="eyebrow">PHASE 2</span><h1>Staff manager</h1><p>Set who can teach, when they work, and the workload limits the generator must respect.</p></div><button className="primary" onClick={addStaff}>+ Add staff member</button></div>
     <div className="summary-grid compact">
-      <div className="metric-card"><span>Staff</span><strong>{data.staff.length}</strong><small>teaching staff entered</small></div>
-      <div className="metric-card"><span>Total FTE</span><strong>{totalFte.toFixed(1)}</strong><small>staffing capacity</small></div>
-      <div className="metric-card"><span>Max teaching periods</span><strong>{totalCapacity}</strong><small>combined weekly ceiling</small></div>
-      <div className="metric-card"><span>Part-time</span><strong>{partTime}</strong><small>staff below 1.0 FTE</small></div>
+      <Metric label="Staff" value={data.staff.length} note="teaching staff entered" />
+      <Metric label="Total FTE" value={totalFte.toFixed(1)} note="staffing capacity" />
+      <Metric label="Max teaching periods" value={totalCapacity} note="combined weekly ceiling" />
+      <Metric label="Part-time" value={partTime} note="staff below 1.0 FTE" />
     </div>
 
     <Section eyebrow="2A · DEPARTMENTS" title="Departments" description="Departments make staffing and workload views easier to organise.">
       <div className="tag-editor">{data.departments.map((dept) => <span className="tag" key={dept}>{dept}<button onClick={() => setData((p) => ({ ...p, departments: p.departments.filter((d) => d !== dept), staff: p.staff.map((s) => s.department === dept ? { ...s, department: '' } : s) }))}>×</button></span>)}</div>
-      <div className="inline-add"><input value={newDepartment} onChange={(e) => setNewDepartment(e.target.value)} placeholder="New department" /><button className="secondary" onClick={() => { const v = newDepartment.trim(); if (v && !data.departments.includes(v)) setData((p) => ({ ...p, departments: [...p.departments, v] })); setNewDepartment(''); }}>Add department</button></div>
+      <div className="inline-add"><input value={newDepartment} onChange={(e) => setNewDepartment(e.target.value)} placeholder="New department" /><button className="secondary" onClick={() => { const value = newDepartment.trim(); if (value && !data.departments.includes(value)) setData((p) => ({ ...p, departments: [...p.departments, value] })); setNewDepartment(''); }}>Add department</button></div>
     </Section>
 
     <Section eyebrow="2B · STAFF" title="Teaching staff" description="Each staff record contains the hard limits later used by the timetable engine.">
       <div className="table-toolbar"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search staff or subject…" /><select value={filter} onChange={(e) => setFilter(e.target.value)}><option>All</option>{data.departments.map((d) => <option key={d}>{d}</option>)}</select></div>
       {data.staff.length === 0 ? <EmptyState title="No staff yet" text="Add your first teacher, then set subjects, hours and availability." action="Add first staff member" onClick={addStaff} /> : <div className="staff-list">{filtered.map((person) => <article className="staff-card" key={person.id}>
-        <div className="staff-card-head"><div className="avatar">{person.initials || '?'}</div><div className="staff-identity"><input className="name-input" value={person.name} onChange={(e) => updateStaff(person.id, 'name', e.target.value)} placeholder="Full name" /><div className="mini-grid"><label><span>Initials</span><input value={person.initials} onChange={(e) => updateStaff(person.id, 'initials', e.target.value.toUpperCase().slice(0, 6))} placeholder="ABC" /></label><label><span>Department</span><select value={person.department} onChange={(e) => updateStaff(person.id, 'department', e.target.value)}><option value="">Select…</option>{data.departments.map((d) => <option key={d}>{d}</option>)}</select></label></div></div><button className="danger-outline small" onClick={() => setData((p) => ({ ...p, staff: p.staff.filter((s) => s.id !== person.id), classes: p.classes.map((c) => c.teacherId === person.id ? { ...c, teacherId: '' } : c) }))}>Remove</button></div>
+        <div className="staff-card-head"><div className="avatar">{person.initials || '?'}</div><div className="staff-identity"><input className="name-input" value={person.name} onChange={(e) => updateStaff(person.id, 'name', e.target.value)} placeholder="Full name" /><div className="mini-grid"><label><span>Initials</span><input value={person.initials} onChange={(e) => updateStaff(person.id, 'initials', e.target.value.toUpperCase().slice(0, 6))} placeholder="ABC" /></label><label><span>Department</span><select value={person.department} onChange={(e) => updateStaff(person.id, 'department', e.target.value)}><option value="">Select…</option>{data.departments.map((d) => <option key={d}>{d}</option>)}</select></label></div></div><button className="danger-outline small" onClick={() => setData((p) => ({ ...p, staff: p.staff.filter((s) => s.id !== person.id), classes: p.classes.map((c) => c.teacherId === person.id ? { ...c, teacherId: '' } : c), curriculumRequirements: p.curriculumRequirements.map((r) => r.teacherId === person.id ? { ...r, teacherId: '', staffingMode: 'any-qualified' } : r) }))}>Remove</button></div>
         <div className="staff-fields">
           <label className="wide"><span>Subjects they can teach</span><input value={(person.subjects || []).join(', ')} onChange={(e) => updateStaff(person.id, 'subjects', e.target.value.split(',').map((x) => x.trim()).filter(Boolean))} placeholder="Physics, Science, Maths" /><small>Separate subjects with commas.</small></label>
           <label><span>FTE</span><input type="number" min="0.1" max="1" step="0.1" value={person.fte} onChange={(e) => updateStaff(person.id, 'fte', e.target.value)} /></label>
@@ -289,7 +350,7 @@ function StaffManager({ data, setData }) {
       </article>)}</div>}
     </Section>
 
-    <div className={`validation-panel ${staffErrors.length ? 'warning' : 'success'}`}><div><span className="eyebrow">STAFF DATA CHECK</span><h2>{staffErrors.length ? `${staffErrors.length} issue${staffErrors.length > 1 ? 's' : ''} to fix` : 'Staff data is ready'}</h2><p>These checks prevent avoidable generation failures later.</p></div>{staffErrors.length ? <ul>{staffErrors.map((e) => <li key={e}>{e}</li>)}</ul> : <p>Add classes in Phase 3 and the app can start comparing lesson demand against staff capacity.</p>}</div>
+    <div className={`validation-panel ${staffErrors.length ? 'warning' : 'success'}`}><div><span className="eyebrow">STAFF DATA CHECK</span><h2>{staffErrors.length ? `${staffErrors.length} issue${staffErrors.length > 1 ? 's' : ''} to fix` : 'Staff data is ready'}</h2><p>These checks prevent avoidable generation failures later.</p></div>{staffErrors.length ? <ul>{staffErrors.map((e) => <li key={e}>{e}</li>)}</ul> : <p>Add classes and curriculum requirements to compare demand against staff capacity.</p>}</div>
   </>;
 }
 
@@ -305,6 +366,7 @@ function ClassesManager({ data, setData }) {
       lessonsPerWeek: 1, optionBlock: '', teacherId: '', notes: '',
     }] }));
   }
+
   const updateClass = (id, field, value) => setData((p) => ({ ...p, classes: p.classes.map((c) => c.id === id ? { ...c, [field]: value } : c) }));
   const visible = data.classes.filter((c) => (typeFilter === 'All' || c.type === typeFilter) && `${c.name} ${c.year} ${c.subject} ${c.optionBlock}`.toLowerCase().includes(search.toLowerCase()));
   const totalStudents = data.classes.reduce((n, c) => n + Number(c.size || 0), 0);
@@ -327,15 +389,19 @@ function ClassesManager({ data, setData }) {
     return [...new Set(errors)];
   }, [data.classes]);
 
-  const yearSummary = years.map(({ year, ks }) => ({ year, ks, groups: data.classes.filter((c) => c.year === year).length, periods: data.classes.filter((c) => c.year === year).reduce((n, c) => n + Number(c.lessonsPerWeek || 0), 0) }));
+  const yearSummary = years.map(({ year, ks }) => ({
+    year, ks,
+    groups: data.classes.filter((c) => c.year === year).length,
+    periods: data.classes.filter((c) => c.year === year).reduce((n, c) => n + Number(c.lessonsPerWeek || 0), 0),
+  }));
 
   return <>
     <div className="page-title"><div><span className="eyebrow">PHASE 3</span><h1>Classes & groups</h1><p>Build the student structures that need to be placed into the whole-school timetable.</p></div><button className="primary" onClick={() => addClass()}>+ Add class or group</button></div>
     <div className="summary-grid compact">
-      <div className="metric-card"><span>Groups</span><strong>{data.classes.length}</strong><small>forms, sets and classes</small></div>
-      <div className="metric-card"><span>Student places</span><strong>{totalStudents}</strong><small>sum of group sizes</small></div>
-      <div className="metric-card"><span>Lesson demand</span><strong>{lessonDemand}</strong><small>group periods/week</small></div>
-      <div className="metric-card"><span>Option groups</span><strong>{optionGroups}</strong><small>GCSE / sixth-form blocks</small></div>
+      <Metric label="Groups" value={data.classes.length} note="forms, sets and classes" />
+      <Metric label="Student places" value={totalStudents} note="sum of group sizes" />
+      <Metric label="Lesson demand" value={lessonDemand} note="group periods/week" />
+      <Metric label="Option groups" value={optionGroups} note="GCSE / sixth-form blocks" />
     </div>
 
     <Section eyebrow="3A · STRUCTURE" title="Year structure" description="Year groups come directly from School Setup, so changes remain linked.">
@@ -354,16 +420,176 @@ function ClassesManager({ data, setData }) {
         <td><input type="number" min="0" value={group.lessonsPerWeek} onChange={(e) => updateClass(group.id, 'lessonsPerWeek', e.target.value)} /></td>
         <td><input value={group.optionBlock || ''} onChange={(e) => updateClass(group.id, 'optionBlock', e.target.value)} placeholder="e.g. A" /></td>
         <td><select value={group.teacherId || ''} onChange={(e) => updateClass(group.id, 'teacherId', e.target.value)}><option value="">Any suitable teacher</option>{data.staff.map((s) => <option key={s.id} value={s.id}>{s.initials || s.name} · {s.name}</option>)}</select></td>
-        <td><button className="danger-icon" onClick={() => setData((p) => ({ ...p, classes: p.classes.filter((c) => c.id !== group.id) }))}>×</button></td>
+        <td><button className="danger-icon" onClick={() => setData((p) => ({ ...p, classes: p.classes.filter((c) => c.id !== group.id), curriculumRequirements: p.curriculumRequirements.filter((r) => r.targetGroupId !== group.id) }))}>×</button></td>
       </tr>)}</tbody></table></div>}
     </Section>
 
-    <Section eyebrow="3C · PLANNING CHECK" title="Demand snapshot" description="This starts linking class demand to staffing, ready for later curriculum and constraint phases.">
+    <Section eyebrow="3C · PLANNING CHECK" title="Demand snapshot" description="This links class demand to staffing, ready for curriculum and constraint phases.">
       <div className="demand-grid"><div><span>Weekly group periods requested</span><strong>{lessonDemand}</strong></div><div><span>Combined staff max teaching periods</span><strong>{data.staff.reduce((n, s) => n + Number(s.maxPeriods || 0), 0)}</strong></div><div><span>Groups with subject but no fixed teacher</span><strong>{unstaffed}</strong></div></div>
       <p className="hint">A blank required-teacher field is not an error: it means the future generator can choose any suitably qualified available teacher.</p>
     </Section>
 
     <div className={`validation-panel ${classErrors.length ? 'warning' : 'success'}`}><div><span className="eyebrow">CLASS DATA CHECK</span><h2>{classErrors.length ? `${classErrors.length} issue${classErrors.length > 1 ? 's' : ''} to fix` : 'Class structure is ready'}</h2><p>Clean group data is essential before curriculum allocations and automatic generation.</p></div>{classErrors.length ? <ul>{classErrors.map((e) => <li key={e}>{e}</li>)}</ul> : <p>{data.classes.length ? 'The structure is ready for Phase 4 curriculum requirements.' : 'Add groups to begin the timetable demand model.'}</p>}</div>
+  </>;
+}
+
+function CurriculumManager({ data, setData }) {
+  const years = data.keyStages.flatMap((ks) => ks.years.map((year) => ({ year, ks: ks.name })));
+  const [yearFilter, setYearFilter] = useState('All');
+  const [subjectFilter, setSubjectFilter] = useState('All');
+  const [search, setSearch] = useState('');
+
+  const subjects = useMemo(() => {
+    const values = new Set(DEFAULT_SUBJECTS);
+    data.staff.forEach((s) => (s.subjects || []).forEach((subject) => values.add(subject)));
+    data.classes.forEach((c) => { if (c.subject?.trim()) values.add(c.subject.trim()); });
+    data.curriculumRequirements.forEach((r) => { if (r.subject?.trim()) values.add(r.subject.trim()); });
+    return [...values].sort((a, b) => a.localeCompare(b));
+  }, [data.staff, data.classes, data.curriculumRequirements]);
+
+  function addRequirement(seed = {}) {
+    setData((p) => ({ ...p, curriculumRequirements: [...p.curriculumRequirements, {
+      id: uid(), name: seed.name || '', year: seed.year || years[0]?.year || '', subject: seed.subject || '',
+      targetType: seed.targetType || 'year', targetGroupId: seed.targetGroupId || '', lessonsPerWeek: seed.lessonsPerWeek ?? 1,
+      doublePeriods: seed.doublePeriods ?? 0, maxSameDay: seed.maxSameDay ?? 1, spread: seed.spread || 'balanced',
+      roomType: seed.roomType || 'No specialist room', staffingMode: seed.staffingMode || (seed.teacherId ? 'fixed' : 'any-qualified'),
+      teacherId: seed.teacherId || '', priority: seed.priority || 'core', notes: seed.notes || '', sourceClassId: seed.sourceClassId || '',
+    }] }));
+  }
+
+  function updateRequirement(id, field, value) {
+    setData((p) => ({ ...p, curriculumRequirements: p.curriculumRequirements.map((r) => r.id === id ? { ...r, [field]: value } : r) }));
+  }
+
+  function importClasses() {
+    setData((p) => {
+      const existingSourceIds = new Set(p.curriculumRequirements.map((r) => r.sourceClassId).filter(Boolean));
+      const additions = p.classes
+        .filter((c) => c.type !== 'Form' && c.subject?.trim() && Number(c.lessonsPerWeek) > 0 && !existingSourceIds.has(c.id))
+        .map((c) => ({
+          id: uid(), name: c.name, year: c.year || '', subject: c.subject, targetType: 'group', targetGroupId: c.id,
+          lessonsPerWeek: Number(c.lessonsPerWeek) || 1, doublePeriods: 0, maxSameDay: 1, spread: 'balanced', roomType: 'No specialist room',
+          staffingMode: c.teacherId ? 'fixed' : 'any-qualified', teacherId: c.teacherId || '', priority: c.type === 'Option group' || c.type === 'Sixth form' ? 'option' : 'core',
+          notes: '', sourceClassId: c.id,
+        }));
+      return { ...p, curriculumRequirements: [...p.curriculumRequirements, ...additions] };
+    });
+  }
+
+  const filtered = data.curriculumRequirements.filter((r) => {
+    const matchesYear = yearFilter === 'All' || r.year === yearFilter;
+    const matchesSubject = subjectFilter === 'All' || r.subject === subjectFilter;
+    const haystack = `${r.name} ${r.year} ${r.subject} ${r.notes}`.toLowerCase();
+    return matchesYear && matchesSubject && haystack.includes(search.toLowerCase());
+  });
+
+  const totalPeriods = data.curriculumRequirements.reduce((n, r) => n + Number(r.lessonsPerWeek || 0), 0);
+  const subjectCount = new Set(data.curriculumRequirements.map((r) => r.subject).filter(Boolean)).size;
+  const yearsCovered = new Set(data.curriculumRequirements.map((r) => r.year).filter(Boolean)).size;
+  const specialistDemand = data.curriculumRequirements.filter((r) => r.roomType && !['No specialist room', 'General classroom'].includes(r.roomType)).reduce((n, r) => n + Number(r.lessonsPerWeek || 0), 0);
+
+  const curriculumErrors = useMemo(() => {
+    const errors = [];
+    const seen = new Map();
+    data.curriculumRequirements.forEach((r) => {
+      const label = r.name || `${r.year || 'Unknown year'} ${r.subject || 'Unnamed subject'}`;
+      if (!r.year?.trim()) errors.push(`${label} needs a year group.`);
+      if (!r.subject?.trim()) errors.push(`${label} needs a subject.`);
+      if (Number(r.lessonsPerWeek) <= 0) errors.push(`${label} must have at least 1 lesson per week.`);
+      if (Number(r.doublePeriods || 0) * 2 > Number(r.lessonsPerWeek || 0)) errors.push(`${label} asks for more double-period lessons than its weekly allocation allows.`);
+      if (Number(r.maxSameDay || 0) < 1) errors.push(`${label} must allow at least one lesson on a day.`);
+      if (r.targetType === 'group' && r.targetGroupId && !data.classes.some((c) => c.id === r.targetGroupId)) errors.push(`${label} points to a class/group that no longer exists.`);
+      if (r.staffingMode === 'fixed') {
+        const teacher = data.staff.find((s) => s.id === r.teacherId);
+        if (!teacher) errors.push(`${label} requires a fixed teacher but none is selected.`);
+        else if (r.subject && !(teacher.subjects || []).some((s) => s.toLowerCase() === r.subject.toLowerCase())) errors.push(`${label}: ${teacher.name || teacher.initials} is not currently listed as able to teach ${r.subject}.`);
+      }
+      if (r.staffingMode === 'any-qualified' && r.subject && !data.staff.some((s) => (s.subjects || []).some((subject) => subject.toLowerCase() === r.subject.toLowerCase()))) {
+        errors.push(`${label}: no staff member is currently marked as able to teach ${r.subject}.`);
+      }
+      const duplicateKey = `${r.year}|${r.subject}|${r.targetType}|${r.targetGroupId || ''}`.toLowerCase();
+      seen.set(duplicateKey, (seen.get(duplicateKey) || 0) + 1);
+    });
+    seen.forEach((count) => { if (count > 1) errors.push('A curriculum target appears more than once; check for duplicate allocations.'); });
+    return [...new Set(errors)];
+  }, [data.curriculumRequirements, data.classes, data.staff]);
+
+  const yearMatrix = years.map(({ year, ks }) => {
+    const rows = data.curriculumRequirements.filter((r) => r.year === year);
+    return { year, ks, periods: rows.reduce((n, r) => n + Number(r.lessonsPerWeek || 0), 0), subjects: new Set(rows.map((r) => r.subject).filter(Boolean)).size, groups: new Set(rows.filter((r) => r.targetType === 'group').map((r) => r.targetGroupId).filter(Boolean)).size };
+  });
+
+  const subjectDemand = [...new Set(data.curriculumRequirements.map((r) => r.subject).filter(Boolean))].sort().map((subject) => {
+    const demand = data.curriculumRequirements.filter((r) => r.subject === subject).reduce((n, r) => n + Number(r.lessonsPerWeek || 0), 0);
+    const qualified = data.staff.filter((s) => (s.subjects || []).some((x) => x.toLowerCase() === subject.toLowerCase()));
+    const capacity = qualified.reduce((n, s) => n + Number(s.maxPeriods || 0), 0);
+    return { subject, demand, qualified: qualified.length, capacity };
+  });
+
+  return <>
+    <div className="page-title"><div><span className="eyebrow">PHASE 4</span><h1>Curriculum requirements</h1><p>Define exactly what teaching must happen each week before rooms and scheduling constraints are applied.</p></div><div className="page-actions"><button className="secondary" onClick={importClasses}>Import from classes</button><button className="primary" onClick={() => addRequirement()}>+ Add requirement</button></div></div>
+
+    <div className="summary-grid compact">
+      <Metric label="Curriculum periods" value={totalPeriods} note="required periods/week" />
+      <Metric label="Subjects" value={subjectCount} note="with allocations" />
+      <Metric label="Years covered" value={yearsCovered} note={`of ${years.length} configured`} />
+      <Metric label="Specialist-room periods" value={specialistDemand} note="room demand flagged" />
+    </div>
+
+    <Section eyebrow="4A · YEAR ALLOCATION" title="Curriculum overview by year" description="See how many weekly periods and subjects have been specified for each year group.">
+      <div className="year-summary">{yearMatrix.map((row) => <div className={`year-summary-card ${row.periods ? '' : 'muted-card'}`} key={`${row.ks}-${row.year}`}><span>{row.ks}</span><strong>{row.year}</strong><small>{row.periods} periods · {row.subjects} subjects{row.groups ? ` · ${row.groups} linked groups` : ''}</small></div>)}</div>
+    </Section>
+
+    <Section eyebrow="4B · REQUIREMENTS" title="Weekly teaching requirements" description="Set subject allocation, lesson pattern, room need and staffing rule for every curriculum target.">
+      <div className="curriculum-toolbar">
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search curriculum requirements…" />
+        <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)}><option>All</option>{years.map((y) => <option key={`${y.ks}-${y.year}`}>{y.year}</option>)}</select>
+        <select value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)}><option>All</option>{subjects.map((subject) => <option key={subject}>{subject}</option>)}</select>
+      </div>
+
+      {data.curriculumRequirements.length === 0 ? <EmptyState title="No curriculum requirements yet" text="Add them manually, or import lesson allocations from the classes already created in Phase 3." action="Add first requirement" onClick={() => addRequirement()} /> : <div className="requirement-list">{filtered.map((requirement) => {
+        const targetClass = data.classes.find((c) => c.id === requirement.targetGroupId);
+        const suitableStaff = data.staff.filter((s) => !requirement.subject || (s.subjects || []).some((subject) => subject.toLowerCase() === requirement.subject.toLowerCase()));
+        return <article className="requirement-card" key={requirement.id}>
+          <div className="requirement-head">
+            <div className="requirement-title-row"><input className="name-input" value={requirement.name || ''} onChange={(e) => updateRequirement(requirement.id, 'name', e.target.value)} placeholder="Optional label, e.g. Year 10 Core Science" /><span className={`priority-chip ${requirement.priority}`}>{requirement.priority === 'core' ? 'Core' : requirement.priority === 'option' ? 'Option' : 'Support'}</span></div>
+            <button className="danger-outline small" onClick={() => setData((p) => ({ ...p, curriculumRequirements: p.curriculumRequirements.filter((r) => r.id !== requirement.id) }))}>Remove</button>
+          </div>
+
+          <div className="requirement-grid">
+            <label><span>Year group</span><select value={requirement.year || ''} onChange={(e) => updateRequirement(requirement.id, 'year', e.target.value)}><option value="">Select…</option>{years.map((y) => <option key={`${y.ks}-${y.year}`} value={y.year}>{y.year}</option>)}</select></label>
+            <label><span>Subject / course</span><input list="subject-options" value={requirement.subject || ''} onChange={(e) => updateRequirement(requirement.id, 'subject', e.target.value)} placeholder="Science" /></label>
+            <label><span>Curriculum type</span><select value={requirement.priority || 'core'} onChange={(e) => updateRequirement(requirement.id, 'priority', e.target.value)}><option value="core">Core</option><option value="option">Option</option><option value="support">Support / intervention</option></select></label>
+            <label><span>Target</span><select value={requirement.targetType || 'year'} onChange={(e) => { updateRequirement(requirement.id, 'targetType', e.target.value); if (e.target.value !== 'group') updateRequirement(requirement.id, 'targetGroupId', ''); }}><option value="year">Whole year allocation</option><option value="group">Specific class/group</option></select></label>
+            {requirement.targetType === 'group' && <label className="span-2"><span>Class / group</span><select value={requirement.targetGroupId || ''} onChange={(e) => { const id = e.target.value; updateRequirement(requirement.id, 'targetGroupId', id); const group = data.classes.find((c) => c.id === id); if (group) { updateRequirement(requirement.id, 'year', group.year || requirement.year); updateRequirement(requirement.id, 'subject', group.subject || requirement.subject); } }}><option value="">Select group…</option>{data.classes.filter((c) => !requirement.year || !c.year || c.year === requirement.year).map((c) => <option key={c.id} value={c.id}>{c.name || 'Unnamed group'} · {c.subject || c.type}</option>)}</select><small>{targetClass ? `Linked to ${targetClass.name}` : 'Choose the exact group that receives this allocation.'}</small></label>}
+            <label><span>Lessons per week</span><input type="number" min="1" max="20" value={requirement.lessonsPerWeek} onChange={(e) => updateRequirement(requirement.id, 'lessonsPerWeek', e.target.value)} /></label>
+            <label><span>Double periods/week</span><input type="number" min="0" max="10" value={requirement.doublePeriods || 0} onChange={(e) => updateRequirement(requirement.id, 'doublePeriods', e.target.value)} /></label>
+            <label><span>Max lessons same day</span><input type="number" min="1" max="6" value={requirement.maxSameDay || 1} onChange={(e) => updateRequirement(requirement.id, 'maxSameDay', e.target.value)} /></label>
+            <label><span>Weekly spread</span><select value={requirement.spread || 'balanced'} onChange={(e) => updateRequirement(requirement.id, 'spread', e.target.value)}><option value="balanced">Spread evenly</option><option value="clustered">Can be clustered</option><option value="any">No preference</option></select></label>
+            <label><span>Room requirement</span><select value={requirement.roomType || 'No specialist room'} onChange={(e) => updateRequirement(requirement.id, 'roomType', e.target.value)}>{ROOM_TYPES.map((room) => <option key={room}>{room}</option>)}</select></label>
+            <label><span>Staffing rule</span><select value={requirement.staffingMode || 'any-qualified'} onChange={(e) => { updateRequirement(requirement.id, 'staffingMode', e.target.value); if (e.target.value !== 'fixed') updateRequirement(requirement.id, 'teacherId', ''); }}><option value="any-qualified">Any qualified teacher</option><option value="fixed">Fixed teacher</option></select></label>
+            {requirement.staffingMode === 'fixed' && <label><span>Required teacher</span><select value={requirement.teacherId || ''} onChange={(e) => updateRequirement(requirement.id, 'teacherId', e.target.value)}><option value="">Select teacher…</option>{suitableStaff.map((s) => <option key={s.id} value={s.id}>{s.initials || s.name} · {s.name}</option>)}</select></label>}
+            <label className="span-2"><span>Notes / delivery rules</span><input value={requirement.notes || ''} onChange={(e) => updateRequirement(requirement.id, 'notes', e.target.value)} placeholder="e.g. Prefer one double practical and three singles" /></label>
+          </div>
+        </article>;
+      })}</div>}
+      <datalist id="subject-options">{subjects.map((subject) => <option key={subject} value={subject} />)}</datalist>
+    </Section>
+
+    <Section eyebrow="4C · STAFFING CAPACITY" title="Subject demand vs staffing" description="A first-pass capacity check before detailed timetable constraints are added. Capacity is a broad ceiling, not a final staffing allocation.">
+      {subjectDemand.length === 0 ? <p className="hint">Add curriculum requirements to see demand by subject.</p> : <div className="subject-demand-grid">{subjectDemand.map((row) => <div className="subject-demand-card" key={row.subject}>
+        <div><strong>{row.subject}</strong><span>{row.demand} periods/week</span></div>
+        <div className="subject-demand-stats"><span><b>{row.qualified}</b> qualified staff</span><span><b>{row.capacity}</b> max periods</span></div>
+        <div className={`capacity-bar ${row.qualified === 0 || (row.capacity > 0 && row.demand > row.capacity) ? 'risk' : ''}`}><span style={{ width: `${row.capacity ? Math.min(100, (row.demand / row.capacity) * 100) : 100}%` }} /></div>
+      </div>)}</div>}
+    </Section>
+
+    <Section eyebrow="4D · GENERATOR READINESS" title="Curriculum validation" description="These checks identify problems that would make later timetable generation fail or produce misleading results.">
+      <div className={`validation-panel embedded ${curriculumErrors.length ? 'warning' : 'success'}`}>
+        <div><span className="eyebrow">CURRICULUM DATA CHECK</span><h2>{curriculumErrors.length ? `${curriculumErrors.length} issue${curriculumErrors.length > 1 ? 's' : ''} to fix` : 'Curriculum requirements are ready'}</h2><p>The next phases can now add rooms and scheduling constraints.</p></div>
+        {curriculumErrors.length ? <ul>{curriculumErrors.map((error) => <li key={error}>{error}</li>)}</ul> : <p>{data.curriculumRequirements.length ? 'All current requirements have the minimum data needed for later generation.' : 'Add curriculum requirements to begin validation.'}</p>}
+      </div>
+    </Section>
   </>;
 }
 
@@ -382,7 +608,7 @@ function App() {
 
   const nav = [
     ['setup', 'School setup', 'Phase 1'], ['staff', 'Staff', 'Phase 2'], ['classes', 'Classes', 'Phase 3'],
-    ['curriculum', 'Curriculum', 'Next'], ['rooms', 'Rooms', 'Later'], ['constraints', 'Constraints', 'Later'],
+    ['curriculum', 'Curriculum', 'Phase 4'], ['rooms', 'Rooms', 'Next'], ['constraints', 'Constraints', 'Later'],
     ['generate', 'Generate timetable', 'Later'], ['timetables', 'Timetables', 'Later'], ['cover', 'Cover', 'Later'],
   ];
 
@@ -390,16 +616,17 @@ function App() {
     setup: Boolean(data.school.name && data.days.some((d) => d.enabled) && data.blocks.length),
     staff: data.staff.length > 0,
     classes: data.classes.length > 0,
+    curriculum: data.curriculumRequirements.length > 0,
   };
 
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark">TM</div><div><strong>Time Maker</strong><span>Whole-school timetabling</span></div></div>
       <nav>{nav.map(([key, label, meta]) => {
-        const enabled = ['setup', 'staff', 'classes'].includes(key);
+        const enabled = ['setup', 'staff', 'classes', 'curriculum'].includes(key);
         return <button key={key} className={`nav-item ${page === key ? 'active' : ''}`} disabled={!enabled} onClick={() => enabled && setPage(key)}><span>{label}</span><small>{enabled && phaseReady[key] ? '✓ Ready' : meta}</small></button>;
       })}</nav>
-      <div className="sidebar-footer"><strong>Build progress</strong><span>Phases 1–3 enabled</span></div>
+      <div className="sidebar-footer"><strong>Build progress</strong><span>Phases 1–4 enabled</span></div>
     </aside>
 
     <main className="main-content">
@@ -407,6 +634,7 @@ function App() {
       {page === 'setup' && <SchoolSetup data={data} setData={setData} />}
       {page === 'staff' && <StaffManager data={data} setData={setData} />}
       {page === 'classes' && <ClassesManager data={data} setData={setData} />}
+      {page === 'curriculum' && <CurriculumManager data={data} setData={setData} />}
       <footer className="app-footer">Time Maker · Whole-school timetable builder · Data currently saves in this browser</footer>
     </main>
   </div>;
