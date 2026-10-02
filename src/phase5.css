@@ -1,0 +1,23 @@
+.slot-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 92px;
+  padding: 6px 8px;
+  border: 1px solid #cfe3dc;
+  border-radius: 9px;
+  background: #f0f8f5;
+  color: #35705f;
+  font-size: .7rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.slot-toggle input { width: auto; margin: 0; }
+.slot-toggle.blocked {
+  border-color: #e5c8c8;
+  background: #fff3f3;
+  color: #985656;
+}
+@media (max-width: 820px) {
+  .slot-toggle { min-width: 82px; font-size: .66rem; }
+}
