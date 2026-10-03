@@ -1,3 +1,4 @@
+import { saveSchool } from './schoolStorage.js';
 import React, { useEffect, useState } from 'react';
 import AppV8 from './AppV8.jsx';
 import EditorManager from './EditorManager.jsx';
@@ -15,7 +16,7 @@ function loadData() {
 
 function EditorScreen({ onBack }) {
   const [data, setData] = useState(loadData);
-  useEffect(() => { localStorage.setItem(KEY, JSON.stringify(data)); }, [data]);
+  useEffect(() => { saveSchool(data); }, [data]);
   return <EditorManager data={data} setData={setData} onBack={onBack} />;
 }
 
@@ -36,3 +37,4 @@ export default function AppV9() {
     <AppV8 key={revision} />
   </div>;
 }
+

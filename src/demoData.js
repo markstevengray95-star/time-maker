@@ -91,7 +91,12 @@ function buildDemoOption(optionIndex = 0) {
       let chosen = null;
       for (let step = 0; step < slots.length; step += 1) {
         const slot = slots[(start + step) % slots.length];
-        const roomId = roomForRequirement(requirement, requirementIndex + lessonIndex + optionIndex);
+        const preferredRoom = roomForRequirement(requirement, requirementIndex + lessonIndex + optionIndex);
+        const roomId = [...rooms].sort((a, b) => Number(b.id === preferredRoom) - Number(a.id === preferredRoom)).find(room =>
+          room.capacity >= group.size && (requirement.roomType === 'No specialist room' || room.type === requirement.roomType) &&
+          !roomBusy.has(`${slot.dayKey}:${slot.block.id}:${room.id}`) &&
+          !room.unavailableSlots.some(closed => closed.day === slot.dayKey && closed.periodId === slot.block.id))?.id;
+        if (!roomId) continue;
         const key = `${slot.dayKey}:${slot.block.id}`;
         if (teacherBusy.has(`${key}:${requirement.teacherId}`)) continue;
         if (groupBusy.has(`${key}:${group.id}`)) continue;

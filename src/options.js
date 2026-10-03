@@ -24,6 +24,7 @@ export function evaluateBlocks(students,assignment,blockCount) {
 export function generateOptionBlocks(students,blockCount=3,maxSubjects=6) {
  if(!students.length)throw new Error('Import student choices first.');
  if(!Number.isInteger(blockCount)||blockCount<2||blockCount>8)throw new Error('Choose 2–8 blocks.');
+ if(!Number.isInteger(maxSubjects)||maxSubjects<1||maxSubjects>80)throw new Error('Choose 1–80 subjects per block.');
  const subjects=[...new Map(students.flatMap(s=>s.choices).map(s=>[norm(s),s])).values()];
  if(subjects.length>blockCount*maxSubjects)throw new Error('Increase the number of blocks or subjects allowed per block.');
  if(subjects.length>80||students.length>5000)throw new Error('Use a cohort of at most 5,000 pupils and 80 subjects.');
@@ -45,7 +46,7 @@ export function generateOptionBlocks(students,blockCount=3,maxSubjects=6) {
    let improved=false;
    for(const subject of subjects){const key=norm(subject),old=assignment[key];
     for(let b=0;b<blockCount;b++){if(b===old||sizes[b]>=maxSubjects)continue;assignment[key]=b;const candidate=evaluateBlocks(students,assignment,blockCount);
-     if(candidate.score>result.score){sizes[old]--;sizes[b]++;result=candidate;improved=true;break;}assignment[key]=old;
+     if(better(candidate,result)){sizes[old]--;sizes[b]++;result=candidate;improved=true;break;}assignment[key]=old;
     }
    }
    // Swaps can improve a solution even when every block is at capacity.
@@ -53,12 +54,13 @@ export function generateOptionBlocks(students,blockCount=3,maxSubjects=6) {
     const a=norm(subjects[i]),b=norm(subjects[j]);if(assignment[a]===assignment[b])continue;
     [assignment[a],assignment[b]]=[assignment[b],assignment[a]];
     const candidate=evaluateBlocks(students,assignment,blockCount);
-    if(candidate.score>result.score){result=candidate;improved=true;}else [assignment[a],assignment[b]]=[assignment[b],assignment[a]];
+    if(better(candidate,result)){result=candidate;improved=true;}else [assignment[a],assignment[b]]=[assignment[b],assignment[a]];
    }
    if(!improved)break;
   }
-  if(!best||result.score>best.score)best={...result,assignment:{...assignment}};
+  if(!best||better(result,best))best={...result,assignment:{...assignment}};
   if(best.full===students.length)break;
  }
  return {...best,blocks:Array.from({length:blockCount},(_,i)=>({name:`Option ${String.fromCharCode(65+i)}`,subjects:subjects.filter(s=>best.assignment[norm(s)]===i)})),total:students.length,createdAt:new Date().toISOString()};
 }
+function better(a,b){return a.full!==b.full?a.full>b.full:a.received!==b.received?a.received>b.received:a.rankScore>b.rankScore;}

@@ -30,7 +30,7 @@ export function coverCandidates(data,date,lesson,bookings=[],allowCombine=false,
   return [{teacherId:t.id,name:t.name,initials:t.initials,specialist,used:booked,remaining:workload.coverCapacity-booked,
    combinedWithLessonId:combine?.id,roomId:combine?.roomId || lesson.roomId,score:(specialist?100:0)-booked*10-(combine?40:0),
    reason:combine?'Combine same-year subject groups within room capacity; check practical supervision.':specialist?'Free subject specialist within cover allocation.':'Free teacher within cover allocation; subject specialist unavailable.'}];
- }).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name));
+ }).sort((a,b)=>b.score-a.score||String(a.name || a.initials || a.teacherId).localeCompare(String(b.name || b.initials || b.teacherId)));
 }
 export function suggestCover(data,date,allowCombine=false,timetable=activeTimetable(data)) {
  if(!timetable)throw new Error('Generate or publish a timetable first.');

@@ -17,3 +17,9 @@ For hosting, set `HOST=0.0.0.0`, `PORT` as needed, `NODE_ENV=production`, and `T
 Publishing snapshots the timetable and resource data. Future draft edits do not alter the published copy. Daily changes and accepted cover plans apply to a date and published timetable, while the master remains unchanged. The Week A reference date is configured on Today.
 
 Student Timetable lets administrators add pupils, assign teaching groups, preview lessons, and create student accounts. Student API responses contain only that pupil's timetable, teacher names, rooms and relevant daily notices. Student accounts cannot read the school dataset or another pupil's timetable. Use Today to publish date-specific changes; students see these after refreshing their portal.
+
+## CSV / Excel exchange
+
+MIS Import / Export accepts CSV and `.xlsx` files with up to 5,000 rows per worksheet and a 10 MB file limit. Download a template, select a sheet, map columns, inspect validation errors and the preview, then apply. Imports update records by stable ID and preserve records not in the file. Import year groups and staff before classes; import classes before pupils and curriculum. Use semicolons for lists. Blank optional columns preserve existing values. Imports change draft school data; the approved timetable stays unchanged until republished.
+
+Export the timetable, staff allocations, rooms, teaching groups, pupil records, subjects and curriculum as CSV or Excel, or create one school workbook with multiple worksheets. A JSON school backup preserves all planner state. Restoring it is a separate explicit action after a preview. Direct vendor MIS API connections are not yet configured.

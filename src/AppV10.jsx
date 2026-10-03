@@ -1,3 +1,4 @@
+import { saveSchool } from './schoolStorage.js';
 import React, { useEffect, useState } from 'react';
 import AppV9 from './AppV9.jsx';
 import AssistantManager from './AssistantManager.jsx';
@@ -15,7 +16,7 @@ function loadData() {
 
 function AssistantScreen({ onBack }) {
   const [data, setData] = useState(loadData);
-  useEffect(() => { localStorage.setItem(KEY, JSON.stringify(data)); }, [data]);
+  useEffect(() => { saveSchool(data); }, [data]);
   return <AssistantManager data={data} setData={setData} onBack={onBack} />;
 }
 
@@ -36,3 +37,4 @@ export default function AppV10() {
     <AppV9 key={revision} />
   </div>;
 }
+

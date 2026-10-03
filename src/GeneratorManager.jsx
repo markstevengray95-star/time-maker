@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { expandCurriculum } from './planning.js';
 
 const uid = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 const norm = (value) => String(value || '').trim().toLowerCase();
@@ -91,19 +92,7 @@ function groupClash(a, b) {
 }
 
 function expandLessons(data) {
-  const out = [];
-  const weeks = getWeeks(data);
-  (data.curriculumRequirements || []).forEach((r) => {
-    const total = Math.max(0, Number(r.lessonsPerWeek || 0));
-    const doubles = Math.min(Math.floor(total / 2), Math.max(0, Number(r.doublePeriods || 0)));
-    const singles = total - doubles * 2;
-    const target = targetInfo(r, data);
-    weeks.forEach((week) => {
-      for (let i = 0; i < doubles; i += 1) out.push({ id: uid(), requirementId: r.id, week, duration: 2, subject: r.subject, label: r.name || `${target.year} ${r.subject}`, ...target, requirement: r });
-      for (let i = 0; i < singles; i += 1) out.push({ id: uid(), requirementId: r.id, week, duration: 1, subject: r.subject, label: r.name || `${target.year} ${r.subject}`, ...target, requirement: r });
-    });
-  });
-  return out;
+  return expandCurriculum(data);
 }
 
 function applies(constraint, lesson, teacher, room) {
@@ -168,6 +157,7 @@ function makeCandidate(lesson, start, durationSlots, teacher, room, state, data,
   if (!teacher) return null;
   if (!room) return null;
   if (teacher.availability?.[start.dayKey] === false) return null;
+  if ((teacher.protectedSlots || []).some(p => durationSlots.some(s => s.id === p.slotId))) return null;
   if (!roomMatches(req, room, lesson.size)) return null;
   if (durationSlots.some((slot) => roomIsUnavailable(room, slot))) return null;
 
@@ -178,7 +168,7 @@ function makeCandidate(lesson, start, durationSlots, teacher, room, state, data,
     if (existing.some((a) => groupClash(lesson, a))) return null;
   }
 
-  const existingSameReqDay = state.assignments.filter((a) => a.requirementId === lesson.requirementId && a.week === lesson.week && a.dayKey === start.dayKey).length;
+  const existingSameReqDay = state.assignments.filter((a) => a.requirementId === lesson.requirementId && a.groupId === lesson.groupId && a.week === lesson.week && a.dayKey === start.dayKey).length;
   if (Number(req.maxSameDay || 0) > 0 && existingSameReqDay >= Number(req.maxSameDay)) return null;
 
   const tentative = { teacherId: teacher.id, roomId: room.id, groupId: lesson.groupId, year: lesson.year, subject: lesson.subject, week: lesson.week, dayKey: start.dayKey, slotIds: durationSlots.map((s) => s.id), periodIndices: durationSlots.map((s) => s.periodIndex), requirementId: lesson.requirementId };

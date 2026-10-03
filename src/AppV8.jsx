@@ -1,3 +1,4 @@
+import { saveSchool } from './schoolStorage.js';
 import React, { useEffect, useState } from 'react';
 import AppV7 from './AppV7.jsx';
 import ReviewManager from './ReviewManager.jsx';
@@ -16,7 +17,7 @@ function loadData() {
 
 function ReviewScreen({ onBack }) {
   const [data, setData] = useState(loadData);
-  useEffect(() => { localStorage.setItem(KEY, JSON.stringify(data)); }, [data]);
+  useEffect(() => { saveSchool(data); }, [data]);
   return <ReviewManager data={data} setData={setData} onBack={onBack} />;
 }
 
@@ -28,7 +29,7 @@ export default function AppV8() {
     const current = loadData();
     const hasCurrent = Boolean(current.school?.name || current.staff?.length || current.classes?.length || current.curriculumRequirements?.length);
     if (hasCurrent && !window.confirm('Load demo data? This will replace the timetable data currently saved in this browser.')) return;
-    localStorage.setItem(KEY, JSON.stringify(buildDemoData()));
+    saveSchool(buildDemoData());
     setMode('builder');
     setRevision((value) => value + 1);
   }
@@ -49,3 +50,4 @@ export default function AppV8() {
     <AppV7 key={revision} />
   </div>;
 }
+

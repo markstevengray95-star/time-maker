@@ -1,3 +1,4 @@
+import { saveSchool } from './schoolStorage.js';
 import React, { useEffect, useState } from 'react';
 import AppV6 from './AppV6.jsx';
 import GeneratorManager from './GeneratorManager.jsx';
@@ -17,7 +18,7 @@ function GeneratorScreen({ onBack }) {
   const [data, setData] = useState(loadGeneratorData);
 
   useEffect(() => {
-    localStorage.setItem(KEY, JSON.stringify(data));
+    saveSchool(data);
   }, [data]);
 
   return <GeneratorManager data={data} setData={setData} onBack={onBack} />;
@@ -40,3 +41,4 @@ export default function AppV7() {
     <AppV6 key={revision} />
   </div>;
 }
+

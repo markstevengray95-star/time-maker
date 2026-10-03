@@ -1,4 +1,5 @@
 import { activeTimetable, slots, weeks, periods, qualified, targets, matchesPeriod, lessonSlots, roomClosed, longestRun } from './timetableCore.js';
+import { demand } from './planning.js';
 
 export const issueGroups = [
   ['impossible','🔴','Impossible constraints'], ['difficult','🟠','Difficult constraints'],
@@ -22,7 +23,7 @@ export function analyseIssues(data, timetable = activeTimetable(data)) {
     else if (teachers.length === 1 || rooms.length === 1) add('difficult',`${r.name || r.subject}: limited choices`,`${teachers.length} eligible teacher(s) and ${rooms.length} suitable room(s). This is a bottleneck, not proof that the timetable is impossible.`, 'Add another specialist or suitable room, or relax fixed staffing where appropriate.');
     if (timetable) weeks(data).forEach(week => {
       const placed = assignments.filter(a => a.requirementId === r.id && a.week === week).reduce((n,a) => n + periods(a),0);
-      if (placed < Number(r.lessonsPerWeek || 0)) add('difficult',`${r.name || r.subject}: ${Number(r.lessonsPerWeek)-placed} periods missing in Week ${week}`,'The selected timetable does not deliver the full curriculum allocation. A failed placement does not establish mathematical impossibility.', 'Check teacher and room bottlenecks, conflicting hard rules, and regenerate after changes.');
+      if (placed < demand(r,data)) add('difficult',`${r.name || r.subject}: ${demand(r,data)-placed} periods missing in Week ${week}`,'The selected timetable does not deliver the full curriculum allocation. A failed placement does not establish mathematical impossibility.', 'Check teacher and room bottlenecks, conflicting hard rules, and regenerate after changes.');
     });
   });
   const busy = new Map();
@@ -30,9 +31,14 @@ export function analyseIssues(data, timetable = activeTimetable(data)) {
     const teacher = data.staff?.find(s => s.id === a.teacherId), room = data.rooms?.find(r => r.id === a.roomId);
     if (!teacher) add('impossible',`${a.subject}: missing teacher`,'The assignment references a deleted or missing member of staff.','Reassign the lesson in the visual editor.');
     if (!room) add('impossible',`${a.subject}: missing room`,'The assignment references a deleted or missing room.','Assign a valid room in the visual editor.');
+    const group=data.classes?.find(g=>g.id===a.groupId),requirement=data.curriculumRequirements?.find(r=>r.id===a.requirementId);
+    if(room&&Number(room.capacity || 0)<Number(group?.size || 0))add('impossible',`${a.subject}: room capacity exceeded`,'The assigned room is too small for the current class size.','Move the lesson to a larger suitable room.');
+    if(room&&requirement?.roomType&&!['No specialist room',room.type].includes(requirement.roomType))add('impossible',`${a.subject}: unsuitable room`,'The assigned room does not meet the specialist-room requirement.','Assign a room of the required type.');
+    if(requirement?.staffingMode==='fixed'&&a.teacherId!==requirement.teacherId)add('impossible',`${a.subject}: fixed teacher changed`,'The assignment uses a different teacher from the curriculum requirement.','Correct the allocation or the fixed-teacher setting.');
     const occupied = lessonSlots(a,data);
     if (occupied.length !== periods(a)) add('impossible',`${a.subject}: invalid timetable slot`,'The school day has changed since this timetable was generated.','Regenerate or move this lesson into valid periods.');
     occupied.forEach(s => {
+      if(teacher?.protectedSlots?.some(p=>p.slotId===s.id))add('impossible',`${a.subject}: protected-time clash`,`${teacher.initials || teacher.name} has protected time during ${s.dayLabel} ${s.name}.`,'Move the lesson or review the protected-time reservation.');
       ['teacherId','roomId','groupId'].forEach(field => {
         if (!a[field]) return;
         const key = `${field}:${a[field]}:${s.id}`, previous = busy.get(key);

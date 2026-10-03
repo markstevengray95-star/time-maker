@@ -4,6 +4,18 @@ export function requirementGroups(r,data) {
   return (data.classes || []).filter(g=>g.year===r.year && ['Form','Teaching group','Set','Sixth form','Mixed year'].includes(g.type));
 }
 export const demand = (r,data) => Number(r.lessonsPerWeek || 0)*(r.targetGroupId ? 1 : requirementGroups(r,data).length || 1);
+export function expandCurriculum(data) {
+ const result=[],cycle=data.school?.cycle==='two-week'?['A','B']:['A'];
+ (data.curriculumRequirements || []).forEach(r=>{
+  const total=Math.max(0,Number(r.lessonsPerWeek || 0)),doubles=Math.min(Math.floor(total/2),Math.max(0,Number(r.doublePeriods || 0)));
+  const groups=requirementGroups(r,data),targets=groups.length?groups:[null];
+  targets.forEach(g=>cycle.forEach(week=>{
+   const target={groupId:g?.id || '',groupName:g?.name || '',year:r.year || g?.year || '',size:Number(g?.size || 0),optionBlock:g?.optionBlock || ''};
+   const create=duration=>({id:uid(),requirementId:r.id,week,duration,subject:r.subject,label:r.name || `${target.groupName || target.year} ${r.subject}`,...target,requirement:r});
+   for(let i=0;i<doubles;i++)result.push(create(2));for(let i=0;i<total-doubles*2;i++)result.push(create(1));
+  }));
+ });return result;
+}
 export function teachingCapacity(t,data) {
   const available=slots(data).filter(s=>s.week==='A' && t.availability?.[s.dayKey]!==false);
   const daily=(data.days || []).filter(d=>d.enabled).reduce((n,d)=>n+Math.min(available.filter(s=>s.dayKey===d.key).length,Number(t.maxDaily || Infinity)),0);
