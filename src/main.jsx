@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './OperationsApp.jsx';
+import App from './SchoolAccess.jsx';
 import './styles.css';
 import './phase5.css';
 import './phase6.css';
