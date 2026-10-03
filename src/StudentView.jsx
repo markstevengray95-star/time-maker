@@ -1,0 +1,12 @@
+import React,{useState} from 'react';import {Panel,Table} from './OperationsUI.jsx';
+export default function StudentView({portal,onDateChange}) {
+ const [tab,setTab]=useState('today'),[week,setWeek]=useState('');if(!portal)return <p>No student timetable available.</p>;
+ const selected=week || portal.week;
+ return <div className="portal-view"><div className="page-title"><div><span className="eyebrow">MY TIMETABLE</span><h1>{portal.identity.name}</h1><p>{portal.identity.year} · {portal.school?.name} · Week {portal.week}</p></div><label>Date<input type="date" value={portal.date} onChange={e=>e.target.value&&onDateChange(e.target.value)}/></label></div>
+ <div className="ops-actions"><button className={tab==='today'?'primary':'secondary'} onClick={()=>setTab('today')}>Today's lessons</button><button className={tab==='week'?'primary':'secondary'} onClick={()=>setTab('week')}>Weekly timetable</button></div>
+ {!portal.publishedAt&&<p className="ops-notice">Your timetable has not been published yet.</p>}
+ {tab==='today'&&<Panel title="Today's lessons"><div className="ops-grid">{portal.today.sort((a,b)=>a.periodIndex-b.periodIndex).map(a=><article className={`ops-card ${a.cancelled?'cancelled':''}`} key={a.id}><h3>{a.periodName}</h3><strong>{a.subject}</strong><p>{a.teacherName || a.teacherInitials}</p><p>Room {a.roomCode || a.roomName || 'To be confirmed'}</p>{a.cover&&<p className="ops-notice">Cover teacher</p>}{a.originalRoomId!==a.roomId&&<p className="ops-notice">Room changed</p>}{a.cancelled&&<p className="ops-notice">Lesson cancelled / off timetable</p>}{a.absent&&!a.cover&&!a.cancelled&&<p>Teacher change to be confirmed</p>}{a.notices?.filter(n=>n.type!=='event').map((n,i)=><p key={i}>{n.title}</p>)}</article>)}</div>{!portal.today.length&&<p>No lessons scheduled for this date.</p>}</Panel>}
+ {tab==='week'&&<Panel title="My weekly timetable"><div className="ops-actions">{portal.weeks.map(w=><button className={selected===w?'primary':'secondary'} key={w} onClick={()=>setWeek(w)}>Week {w}</button>)}</div><Table head={['Day','Period','Subject','Teacher','Room']} rows={portal.master.filter(a=>a.week===selected).map(a=>[a.dayLabel,a.periodName,a.subject,a.teacherName || a.teacherInitials,a.roomCode || a.roomName])}/><p className="hint">Use Today's lessons for date-specific room changes and cover.</p></Panel>}
+ {portal.notices.map(n=><p className="ops-notice" key={n.id}>{n.title}</p>)}
+ </div>;
+}

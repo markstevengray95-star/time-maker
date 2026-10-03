@@ -24,3 +24,12 @@ export function staffPortal(data,teacherId,date) {
  return {identity:{id:teacher.id,name:teacher.name,initials:teacher.initials},role:'staff',school:{name:source.school?.name},publishedAt:data.publishedAt,date,week:dateInfo(source,date).week,today,master:master.map(cleanLesson),classes,rooms,duties:[...duties,...protectedDuties],free,
   notices:(source.dailyChanges || []).filter(c=>c.date===date&&c.type==='event'&&(!c.groupId||classes.some(g=>g.id===c.groupId))).map(c=>({id:c.id,title:c.title}))};
 }
+export function studentPortal(data,studentId,date) {
+ const student=data.students?.find(s=>s.id===studentId);if(!student)throw new Error('Pupil record not found.');
+ const source=publishedSource(data),groups=new Set(student.groupIds || []),matches=a=>groups.has(a.groupId)||(!a.groupId&&a.year===student.year);
+ const master=(data.publishedTimetable?.assignments || []).filter(matches);
+ const today=data.publishedTimetable?dailyView(source,date,data.publishedTimetable).filter(matches).map(a=>({...cleanLesson(a),notices:(a.changes || []).map(c=>({type:c.type,title:c.title}))})):[];
+ return {role:'student',identity:{id:student.id,name:student.name,year:student.year},school:{name:source.school?.name},publishedAt:data.publishedAt,date,week:dateInfo(source,date).week,
+  today,master:master.map(cleanLesson),weeks:source.school?.cycle==='two-week'?['A','B']:['A'],
+  notices:(source.dailyChanges || []).filter(c=>c.date===date&&c.type==='event'&&(!c.groupId||groups.has(c.groupId))).map(c=>({id:c.id,title:c.title}))};
+}

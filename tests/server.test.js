@@ -11,5 +11,10 @@ test('authenticated API enforces staff scope and administrator-only school write
   assert.equal((await fetch(base+'/api/school',{headers:{Cookie:staffCookie}})).status,403);
   const portal=await (await fetch(base+'/api/portal?date=2026-10-06&teacherId=other',{headers:{Cookie:staffCookie}})).json();assert.ok(portal.master.every(a=>a.teacherId===data.staff[0].id));assert.ok(!JSON.stringify(portal).includes('private'));
   assert.equal((await fetch(base+'/api/school',{method:'POST',headers:{Cookie:staffCookie,'X-CSRF-Token':staffAuth.csrf,'Content-Type':'application/json'},body:JSON.stringify({data:{},revision:1})})).status,403);
+  data.students=[{id:'p1',name:'Pupil One',year:data.classes[0].year,groupIds:[data.classes[0].id]}];
+  assert.equal((await fetch(base+'/api/school',{method:'POST',headers,body:JSON.stringify({data,revision:1})})).status,200);
+  assert.equal((await fetch(base+'/api/accounts',{method:'POST',headers,body:JSON.stringify({username:'pupil',password:'Test-student-password',role:'student',entityId:'p1'})})).status,201);
+  const pupilLogin=await fetch(base+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'pupil',password:'Test-student-password'})}),pupilCookie=pupilLogin.headers.get('set-cookie').split(';')[0];
+  const pupilPortal=await (await fetch(base+'/api/portal?date=2026-10-06&studentId=other',{headers:{Cookie:pupilCookie}})).json();assert.equal(pupilPortal.identity.id,'p1');assert.ok(pupilPortal.master.every(a=>a.groupId===data.classes[0].id));assert.equal((await fetch(base+'/api/school',{headers:{Cookie:pupilCookie}})).status,403);
  }finally{await new Promise(resolve=>server.close(resolve));fs.rmSync(dataDir,{recursive:true,force:true});}
 });

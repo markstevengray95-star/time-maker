@@ -1,5 +1,5 @@
 import http from 'node:http';import fs from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';
-import {hashPassword,verifyPassword,token} from './auth.js';import {staffPortal} from '../src/portal.js';import {schoolToday} from '../src/daily.js';
+import {hashPassword,verifyPassword,token} from './auth.js';import {staffPortal,studentPortal} from '../src/portal.js';import {schoolToday} from '../src/daily.js';
 
 export async function createApp({dataDir=path.resolve('server-data'),distDir=path.resolve('dist'),adminUser=process.env.TIMEMAKER_ADMIN_USER,adminPassword=process.env.TIMEMAKER_ADMIN_PASSWORD,secureCookies=process.env.NODE_ENV==='production',origin=process.env.TIMEMAKER_ORIGIN}={}) {
  fs.mkdirSync(dataDir,{recursive:true});const dbPath=path.join(dataDir,'school.json');
@@ -44,9 +44,9 @@ export async function createApp({dataDir=path.resolve('server-data'),distDir=pat
    if(!s)fail(401,'Sign in to continue.');
    if(route==='/api/logout'&&req.method==='POST'){sessions.delete(s.cookie);return send(res,200,{ok:true},{'Set-Cookie':cookie('',0)});}
    if(route==='/api/portal'&&req.method==='GET'){
-    if(s.account.role!=='staff')fail(403,'This account does not have a staff portal.');
+    if(!['staff','student'].includes(s.account.role))fail(403,'This account does not have a personal portal.');
     const date=url.searchParams.get('date') || schoolToday(state.school);if(!/^\d{4}-\d{2}-\d{2}$/.test(date))fail(400,'Invalid date.');
-    return send(res,200,staffPortal(state.school,s.account.entityId,date));
+    return send(res,200,s.account.role==='student'?studentPortal(state.school,s.account.entityId,date):staffPortal(state.school,s.account.entityId,date));
    }
    if(s.account.role!=='admin')fail(403,'Administrator access required.');
    if(route==='/api/school'&&req.method==='GET')return send(res,200,{data:state.school,revision:state.revision});
@@ -56,10 +56,11 @@ export async function createApp({dataDir=path.resolve('server-data'),distDir=pat
    }
    if(route==='/api/accounts'&&req.method==='GET')return send(res,200,{accounts:state.accounts.map(publicAccount)});
    if(route==='/api/accounts'&&req.method==='POST'){
-    const input=await body(req);if(!['staff','admin'].includes(input.role))fail(400,'Choose an account role.');
+    const input=await body(req);if(!['staff','student','admin'].includes(input.role))fail(400,'Choose an account role.');
     const username=String(input.username || '').trim().toLowerCase();if(!/^[a-z0-9._@-]{3,120}$/.test(username))fail(400,'Use a username of 3–120 letters, digits, dots, hyphens or @.');
     if(state.accounts.some(a=>a.username===username))fail(400,'Username already exists.');
     if(input.role==='staff'&&!state.school.staff?.some(t=>t.id===input.entityId))fail(400,'Select a staff record in the synced school.');
+    if(input.role==='student'&&!state.school.students?.some(t=>t.id===input.entityId))fail(400,'Select a pupil record in the synced school.');
     const credentials=await hashPassword(input.password);
     if(state.accounts.some(a=>a.username===username))fail(400,'Username already exists.');
     const a={id:token(),username,role:input.role,entityId:input.entityId,...credentials};state.accounts.push(a);persist();return send(res,201,{account:publicAccount(a)});

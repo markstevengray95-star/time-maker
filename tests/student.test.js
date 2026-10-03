@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {buildDemoData} from '../src/demoData.js';import {studentPortal} from '../src/portal.js';
+test('pupil only receives their own groups with daily cover and room changes',()=>{
+ const d=buildDemoData(),group=d.classes[0];d.publishedTimetable=structuredClone(d.generatedTimetables[0]);d.students=[{id:'p1',name:'Pupil One',year:group.year,groupIds:[group.id]},{id:'p2',name:'PRIVATE OTHER PUPIL',year:d.classes[1].year,groupIds:[d.classes[1].id]}];const lesson=d.publishedTimetable.assignments.find(a=>a.groupId===group.id&&a.dayKey==='tue');
+ d.dailyChanges=[{date:'2026-10-06',type:'room',lessonId:lesson.id,roomId:d.rooms[1].id,title:'Temporary room change'}];d.coverPlans=[{date:'2026-10-06',timetableId:d.publishedTimetable.id,assignments:[{lessonId:lesson.id,teacherId:d.staff[1].id}],unfilled:[]}];
+ const result=studentPortal(d,'p1','2026-10-06');assert.ok(result.master.every(a=>a.groupId===group.id));const updated=result.today.find(a=>a.id===lesson.id);assert.equal(updated.cover,true);assert.equal(updated.teacherName,d.staff[1].name);assert.equal(updated.roomId,d.rooms[1].id);assert.ok(!JSON.stringify(result).includes('PRIVATE OTHER PUPIL'));
+});
