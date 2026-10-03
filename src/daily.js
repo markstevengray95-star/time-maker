@@ -1,4 +1,4 @@
-import {activeTimetable,slots,lessonSlots,weeks} from './timetableCore.js';
+import {activeTimetable,slots,lessonSlots,weeks,roomClosed} from './timetableCore.js';
 export function schoolToday(data) {return new Intl.DateTimeFormat('en-CA',{timeZone:data.school?.timezone || 'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
 export function dateInfo(data,date) {
  const parsed=new Date(date+'T12:00:00Z');if(Number.isNaN(parsed.getTime()))throw new Error('Choose a valid date.');
@@ -28,3 +28,17 @@ export function dailyView(data,date,timetable=data.publishedTimetable || activeT
  });
 }
 export function dateSlots(data,date) {const info=dateInfo(data,date);return slots(data).filter(s=>s.week===info.week&&s.dayKey===info.dayKey);}
+export function validateDailyChange(data,change,timetable=data.publishedTimetable || activeTimetable(data)) {
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(change.date || ''))throw new Error('Choose a date.');
+ if(!['room','trip','exam','cancelled','event'].includes(change.type))throw new Error('Choose a change type.');
+ if(!change.title?.trim())throw new Error('Add a title for this change.');
+ if(change.groupId&&!data.classes?.some(g=>g.id===change.groupId))throw new Error('Select a valid class.');
+ if(change.type!=='room')return true;
+ const lesson=dayLessons(data,change.date,timetable).find(a=>a.id===change.lessonId),room=data.rooms?.find(r=>r.id===change.roomId);
+ if(!lesson||!room)throw new Error('Select a lesson and a new room.');
+ const group=data.classes?.find(g=>g.id===lesson.groupId);
+ if(Number(room.capacity || 0)<Number(group?.size || 0))throw new Error('The new room cannot hold this class.');
+ const needed=lessonSlots(lesson,data);if(needed.some(s=>roomClosed(room,s)))throw new Error('This room is closed during the lesson.');
+ if(dailyView(data,change.date,timetable).some(a=>a.id!==lesson.id&&!a.cancelled&&a.roomId===room.id&&lessonSlots(a,data).some(s=>needed.some(x=>x.id===s.id))))throw new Error('This room is already used by another lesson.');
+ return true;
+}

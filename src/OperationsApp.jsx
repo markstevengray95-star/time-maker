@@ -5,9 +5,10 @@ import WorkloadScreen from './WorkloadScreen.jsx';
 import PlanningScreen from './PlanningScreen.jsx';
 import OptionsScreen from './OptionsScreen.jsx';
 import CoverScreen from './CoverScreen.jsx';
+import TodayScreen from './TodayScreen.jsx';
 import { KEY, activeTimetable } from './timetableCore.js';
 
-const screens = [['issues','Timetable Issues',11,IssuesScreen],['workload','Staff Workload',12,WorkloadScreen],['planning','Curriculum Planning',13,PlanningScreen],['options','Option Blocks',14,OptionsScreen],['cover','Cover',15,CoverScreen]];
+const screens = [['issues','Timetable Issues',11,IssuesScreen],['workload','Staff Workload',12,WorkloadScreen],['planning','Curriculum Planning',13,PlanningScreen],['options','Option Blocks',14,OptionsScreen],['cover','Cover',15,CoverScreen],['today','Today',16,TodayScreen]];
 function load() {try {return JSON.parse(localStorage.getItem(KEY) || '{}');} catch {return {};}}
 export default function OperationsApp() {
   const [page,setPage] = useState('builder'), [data,setState] = useState(load), [revision,setRevision] = useState(0), [saveError,setSaveError] = useState('');

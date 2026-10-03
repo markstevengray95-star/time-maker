@@ -1,7 +1,7 @@
 import {activeTimetable,lessonSlots,qualified,targets,matchesPeriod,longestRun,periods} from './timetableCore.js';
-import {staffWorkload} from './workload.js';import {absentAt,dateInfo,dayLessons} from './daily.js';
+import {staffWorkload} from './workload.js';import {absentAt,dateInfo,dayLessons,dailyView} from './daily.js';
 export function coverCandidates(data,date,lesson,bookings=[],allowCombine=false,timetable=activeTimetable(data)) {
- const info=dateInfo(data,date),needed=lessonSlots(lesson,data),ids=needed.map(s=>s.id),master=dayLessons(data,date,timetable);
+ const info=dateInfo(data,date),needed=lessonSlots(lesson,data),ids=needed.map(s=>s.id),master=dailyView({...data,coverPlans:[]},date,timetable).filter(a=>!a.cancelled);
  const workloads=staffWorkload(data,timetable);
  const existing=(data.coverPlans || []).filter(p=>p.date!==date&&p.timetableId===timetable?.id&&dateInfo(data,p.date).monday===info.monday).flatMap(p=>p.assignments);
  return (data.staff || []).flatMap(t=>{
@@ -34,7 +34,7 @@ export function coverCandidates(data,date,lesson,bookings=[],allowCombine=false,
 }
 export function suggestCover(data,date,allowCombine=false,timetable=activeTimetable(data)) {
  if(!timetable)throw new Error('Generate or publish a timetable first.');
- const lessons=dayLessons(data,date,timetable).filter(a=>absentAt(data,a.teacherId,date,a.slotIds || [])),assignments=[],unfilled=[];
+ const lessons=dailyView({...data,coverPlans:[]},date,timetable).filter(a=>!a.cancelled&&absentAt(data,a.teacherId,date,a.slotIds || [])),assignments=[],unfilled=[];
  lessons.sort((a,b)=>coverCandidates(data,date,a,[],allowCombine,timetable).length-coverCandidates(data,date,b,[],allowCombine,timetable).length);
  lessons.forEach(a=>{
   const candidate=coverCandidates(data,date,a,assignments,allowCombine,timetable)[0];
