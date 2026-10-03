@@ -1,0 +1,24 @@
+import React,{useState,useRef,useEffect} from 'react';
+import {parseCSV,toCSV,downloadText} from './csv.js';import {importChoices} from './options.js';import {uid,norm} from './timetableCore.js';import {Panel,Metrics,Table} from './OperationsUI.jsx';
+export default function OptionsScreen({data,setData}) {
+ const [text,setText]=useState(''),[blockCount,setBlockCount]=useState(3),[maxSubjects,setMaxSubjects]=useState(6),[error,setError]=useState(''),[busy,setBusy]=useState(false),[cohort,setCohort]=useState('Year 10');const worker=useRef(null);
+ useEffect(()=>()=>worker.current?.terminate(),[]);
+ const students=(data.optionChoices || []).filter(s=>!s.year||s.year===cohort),result=data.optionPlans?.find(p=>p.cohort===cohort);
+ function importData(){try{const choices=importChoices(parseCSV(text));setData(p=>({...p,optionChoices:[...(p.optionChoices || []).filter(s=>s.year!==cohort),...choices.map(s=>({...s,year:s.year||cohort}))],optionPlans:(p.optionPlans || []).filter(plan=>plan.cohort!==cohort)}));setError('');}catch(e){setError(e.message);}}
+ function generate(){setBusy(true);setError('');worker.current?.terminate();const w=new Worker(new URL('./options.worker.js',import.meta.url),{type:'module'});worker.current=w;
+  w.onmessage=({data:reply})=>{setBusy(false);if(reply.error)setError(reply.error);else setData(p=>({...p,optionPlans:[...(p.optionPlans || []).filter(x=>x.cohort!==cohort),{...reply.result,id:uid(),cohort}]}));w.terminate();};
+  w.onerror=()=>{setBusy(false);setError('Option generation failed. Try a smaller cohort.');w.terminate();};w.postMessage({students,blockCount,maxSubjects});
+ }
+ return <><Panel title="Import ranked student choices" description="Use studentId, name, year, choice1, choice2, choice3 and any further choice columns. Choices are ranked from left to right.">
+ <div className="ops-controls"><label>Cohort<input value={cohort} onChange={e=>setCohort(e.target.value)} disabled={busy}/></label><label>CSV file<input type="file" accept=".csv" onChange={async e=>{const f=e.target.files?.[0];if(f)setText(await f.text());}}/></label><button className="secondary" onClick={()=>downloadText('option-choices-template.csv',toCSV(['studentId','name','year','choice1','choice2','choice3'],[['pupil-001','Example pupil','Year 10','History','Art','French']]))}>Download template</button></div>
+ <label>CSV choices<textarea value={text} onChange={e=>setText(e.target.value)} placeholder="studentId,name,year,choice1,choice2,choice3"/></label><div className="ops-actions"><button className="primary" onClick={importData} disabled={busy||!text}>Validate and import choices</button></div><p>{students.length} pupils imported for {cohort}.</p>
+ {error&&<p role="alert" className="ops-error">{error}</p>}</Panel>
+ <Panel title="Generate option blocks" description="The search prioritises pupils receiving every requested choice, then total choices received and ranked preferences. It attempts several arrangements; it does not guarantee the global optimum.">
+ <div className="ops-controls"><label>Number of blocks<input type="number" min="2" max="8" value={blockCount} onChange={e=>setBlockCount(Number(e.target.value))}/></label><label>Maximum subjects per block<input type="number" min="1" max="30" value={maxSubjects} onChange={e=>setMaxSubjects(Number(e.target.value))}/></label><button className="primary" disabled={busy||!students.length} onClick={generate}>{busy?'Searching arrangements…':'Generate blocks'}</button></div>
+ {result&&<><Metrics items={[["All choices received",`${result.full} / ${result.total}`,'Pupils'],["Preferred choices received",result.received,'Choices'],["Success rate",`${Math.round(result.full/result.total*100)}%`,'All choices'],["Blocks",result.blocks.length,cohort]]}/>
+ <div className="ops-grid">{result.blocks.map(b=><article className="ops-card" key={b.name}><h3>{b.name}</h3>{b.subjects.map(s=><p key={s}>{s}</p>)}</article>)}</div>
+ <Table head={['Pupil','Received','Unmet choices']} rows={result.pupils.filter(s=>s.unmet.length).map(s=>[s.name,s.achieved.join(', '),s.unmet.join(', ')])}/>
+ <div className="ops-actions"><button className="secondary" onClick={()=>downloadText('option-blocks.csv',toCSV(['block','subject'],result.blocks.flatMap(b=>b.subjects.map(s=>[b.name,s]))))}>Export blocks</button><button className="primary" onClick={()=>{setData(p=>({...p,classes:(p.classes || []).map(g=>{const block=result.blocks.find(b=>b.subjects.some(s=>norm(s)===norm(g.subject)));return g.year===cohort&&block?{...g,optionBlock:block.name.replace('Option ','')}:g;})}));setError('');}}>Apply labels to matching option classes</button></div><p className="hint">Block labels are applied to matching subjects in this cohort. The saved plan includes each pupil’s achieved choices; review staffing, class sizes and lesson allocations before timetabling.</p>
+ </>}
+ </Panel></>;
+}
